@@ -1,18 +1,10 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
 from posts.models import Post, Group, Comment
 from .serializers import PostSerializer, GroupSerializer, CommentSerializer
-from rest_framework import permissions
-
-
-class IsAuthorOrReadOnly(permissions.BasePermission):
-    message = 'Изменение чужого контента запрещено!'
-
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return obj.author == request.user
+from .permissions import IsAuthorOrReadOnly
 
 
 class PostViewSet(viewsets.ModelViewSet):
@@ -33,15 +25,17 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = (IsAuthenticated, IsAuthorOrReadOnly)
 
-    def url_post_id(self):
-        return self.kwargs.get("post_id")
+    def post_from_url(self):
+        post_id = self.kwargs.get("post_id")
+        return get_object_or_404(Post, pk=post_id)
 
     def get_queryset(self):
-        new_queryset = Comment.objects.filter(post=self.url_post_id())
+        new_queryset = Comment.objects.filter(
+            post=self.post_from_url())
         return new_queryset
 
     def perform_create(self, serializer):
         serializer.save(
             author=self.request.user,
-            post=Post.objects.get(pk=self.url_post_id())
+            post=self.post_from_url()
         )
